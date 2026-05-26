@@ -1,0 +1,24 @@
+{
+  "sessionId": "2026-04-28-cfa-test",
+  "projectId": "cfa-test-1777375948631",
+  "projectName": "cfa-test",
+  "initializedAt": "2026-04-28T11:32:28.704Z",
+  "lastActivity": "2026-04-28T11:32:28.704Z",
+  "currentCycle": 0,
+  "currentPhase": 1,
+  "synapticStrength": 0,
+  "enforcement": {
+    "mode": "STRICT",
+    "persistence": {
+      "enabled": true,
+      "autoValidate": true,
+      "rejectNonCompliant": true,
+      "violationThreshold": 3
+    }
+  },
+  "agentState": {
+    "complianceScore": 100,
+    "violationsCount": 0,
+    "successfulCycles": 0
+  }
+}

@@ -2,6 +2,7 @@ import type { ArticleSection } from '../types';
 
 const contentRegistry: Record<string, () => Promise<{ default: ArticleSection[] }>> = {
   'atomayz-obzor': () => import('./atomayz-obzor'),
+  'kak-vybrat-cfa-sravnenie-platform': () => import('./kak-vybrat-cfa-sravnenie-platform'),
   'chto-takoe-cfa': () => import('./chto-takoe-cfa'),
   'gde-kupit-cfa': () => import('./gde-kupit-cfa'),
   'cfa-vs-vklad': () => import('./cfa-vs-vklad'),

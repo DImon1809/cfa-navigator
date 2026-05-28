@@ -11,7 +11,6 @@ import type { CfaCollection } from "@/lib/types";
 const typedCfaData = cfaData as unknown as CfaCollection;
 
 export default function Home() {
-  console.log("work");
   return (
     <main className="min-h-screen">
       <Hero />

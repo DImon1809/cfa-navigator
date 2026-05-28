@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { AuthProvider } from "@/lib/auth-context";
+import { ThemeProvider } from "@/lib/theme-context";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -263,15 +264,24 @@ export default function RootLayout({
             }),
           }}
         />
+
+        {/* Prevent flash of wrong theme */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('theme');if(t==='dark'||t===null){document.documentElement.classList.add('dark');}})();`,
+          }}
+        />
       </head>
       <body
         className={`${inter.variable} antialiased`}
         suppressHydrationWarning
       >
-        <AuthProvider>
-          <Header />
-          {children}
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <Header />
+            {children}
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -46,8 +46,40 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description,
       type: 'article',
       publishedTime: article.publishedAt,
+      modifiedTime: article.publishedAt,
+      siteName: 'ЦФА.Навигатор',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
     },
   };
+}
+
+function extractFaqPairs(sections: ArticleSection[]): { question: string; answer: string }[] {
+  const faqIdx = sections.findIndex(
+    (s): s is Extract<ArticleSection, { type: 'h2' }> => s.type === 'h2' && (s as Extract<ArticleSection, { type: 'h2' }>).id === 'faq'
+  );
+  if (faqIdx === -1) return [];
+
+  const pairs: { question: string; answer: string }[] = [];
+  let i = faqIdx + 1;
+
+  while (i < sections.length) {
+    const s = sections[i];
+    if (s.type === 'h2') break;
+    if (s.type === 'h3' && i + 1 < sections.length && sections[i + 1].type === 'paragraph') {
+      const rawHtml = (sections[i + 1] as Extract<ArticleSection, { type: 'paragraph' }>).html;
+      const answer = rawHtml.replace(/<[^>]+>/g, '');
+      pairs.push({ question: s.text, answer });
+      i += 2;
+    } else {
+      i++;
+    }
+  }
+
+  return pairs;
 }
 
 const categoryColors: Record<Category, { text: string; badge: string }> = {
@@ -86,16 +118,42 @@ export default async function ArticlePage({ params }: Props) {
     .filter((a) => a.category === cat && a.slug !== slug)
     .slice(0, 3);
 
+  const faqItems = sections ? extractFaqPairs(sections) : [];
+
   const articleJsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'Article',
+    '@type': 'BlogPosting',
     headline: article.seoTitle ?? article.title,
     description: article.seoDescription ?? article.description,
     datePublished: article.publishedAt,
-    author: { '@type': 'Organization', name: 'ЦФА.Навигатор' },
-    publisher: { '@type': 'Organization', name: 'ЦФА.Навигатор' },
+    dateModified: article.publishedAt,
+    inLanguage: 'ru',
+    author: {
+      '@type': 'Organization',
+      name: 'ЦФА.Навигатор',
+      url: siteUrl,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'ЦФА.Навигатор',
+      url: siteUrl,
+    },
     url: `${siteUrl}/blog/${category}/${slug}`,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': `${siteUrl}/blog/${category}/${slug}` },
+    keywords: article.keywords.join(', '),
   };
+
+  const faqJsonLd = faqItems.length > 0
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqItems.map((item) => ({
+          '@type': 'Question',
+          name: item.question,
+          acceptedAnswer: { '@type': 'Answer', text: item.answer },
+        })),
+      }
+    : null;
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
@@ -120,6 +178,13 @@ export default async function ArticlePage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+      {faqJsonLd && (
+        <Script
+          id="faq-jsonld"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        />
+      )}
 
       <main className="min-h-screen">
         {/* Breadcrumb */}

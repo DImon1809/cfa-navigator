@@ -3,14 +3,19 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { User, LogOut, LogIn, Menu, X } from "lucide-react";
+import { GippyLogo } from "@/components/ui/GippyLogo";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { useAuth } from "@/lib/auth-context";
 import { useState, useEffect } from "react";
+import { GippyChat } from "@/components/ui/GippyChat";
+import { GippyNotification } from "@/components/ui/GippyNotification";
 
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Закрываем меню при смене страницы
   useEffect(() => {
@@ -72,6 +77,16 @@ export function Header() {
                 </Link>
               ))}
 
+              <button
+                onClick={() => setChatOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-white bg-linear-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 transition-all shadow-sm shadow-violet-500/30 whitespace-nowrap"
+              >
+                <GippyLogo size={22} theme="dark" className="shrink-0" />
+                Gippy AI
+              </button>
+
+              <span className="mx-1 h-4 w-px bg-border" />
+              <ThemeToggle />
               <span className="mx-1 h-4 w-px bg-border" />
 
               {!isLoading &&
@@ -147,6 +162,21 @@ export function Header() {
                 </Link>
               ))}
 
+              <button
+                onClick={() => { setMenuOpen(false); setChatOpen(true); }}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-white bg-linear-to-r from-violet-600 to-blue-600"
+              >
+                <GippyLogo size={22} theme="dark" className="shrink-0" />
+                Gippy AI
+              </button>
+
+              <div className="my-1 h-px bg-border" />
+
+              <div className="flex items-center gap-2 px-3 py-2">
+                <span className="text-sm text-muted-foreground">Тема</span>
+                <ThemeToggle />
+              </div>
+
               <div className="my-1 h-px bg-border" />
 
               {!isLoading &&
@@ -201,6 +231,12 @@ export function Header() {
           aria-hidden="true"
         />
       )}
+
+      {/* Gippy AI chat overlay */}
+      {chatOpen && <GippyChat onClose={() => setChatOpen(false)} />}
+
+      {/* First-visit notification */}
+      {!chatOpen && <GippyNotification onOpen={() => setChatOpen(true)} />}
     </>
   );
 }

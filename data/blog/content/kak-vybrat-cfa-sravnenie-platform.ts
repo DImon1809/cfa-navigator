@@ -88,7 +88,7 @@ const sections: ArticleSection[] = [
   },
   {
     type: 'cta',
-    variant: 'inline',
+    variant: 'form',
     title: 'Хотите такую же таблицу под вашу сумму?',
     text: 'Укажите сумму — подберём топ-3 выпуска с лучшей доходностью прямо сейчас.',
     buttonLabel: 'Подобрать ЦФА',

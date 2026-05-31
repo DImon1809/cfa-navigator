@@ -2,6 +2,7 @@ import { Hero } from "@/components/sections/Hero";
 import { CfaIntro } from "@/components/sections/CfaIntro";
 import { PainCards } from "@/components/sections/PainCards";
 import { CfaCards } from "@/components/sections/CfaCards";
+import { LiveCfaFeed } from "@/components/sections/LiveCfaFeed";
 import { QuickLeadForm } from "@/components/sections/QuickLeadForm";
 import { SeoContent } from "@/components/sections/SeoContent";
 import { Footer } from "@/components/sections/Footer";
@@ -17,6 +18,7 @@ export default function Home() {
       <CfaIntro />
       <PainCards />
       <CfaCards items={typedCfaData.items} />
+      <LiveCfaFeed />
       <QuickLeadForm />
       <SeoContent />
       <Footer />

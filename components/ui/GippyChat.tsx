@@ -444,6 +444,14 @@ function renderMarkdown(text: string, isDark: boolean): string {
     .replace(/\n/g, "<br/>");
 }
 
+// ─── Yandex Metrika helper ────────────────────────────────────────────────────
+
+function ymGoal(goal: string) {
+  if (typeof window === "undefined" || !(window as any).ym) return;
+  const id = process.env.NEXT_PUBLIC_YM_COUNTER_ID;
+  if (id) (window as any).ym(id, "reachGoal", goal);
+}
+
 // ─── GippyChat component ──────────────────────────────────────────────────────
 
 interface Props { onClose: () => void; }
@@ -460,6 +468,7 @@ export function GippyChat({ onClose }: Props) {
   const abortCtrl = useRef<AbortController | null>(null);
 
   const handleClose = () => {
+    ymGoal("GIPPY_CHAT_CLOSE");
     setClosing(true);
     setTimeout(() => onClose(), 220);
   };
@@ -469,6 +478,7 @@ export function GippyChat({ onClose }: Props) {
   }, [messages]);
 
   useEffect(() => {
+    ymGoal("GIPPY_CHAT_OPEN");
     textareaRef.current?.focus();
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -483,6 +493,7 @@ export function GippyChat({ onClose }: Props) {
     setMessages([...history, { role: "assistant", content: "", streaming: true }]);
     setInput("");
     setBusy(true);
+    ymGoal("GIPPY_CHAT_MESSAGE_SENT");
 
     abortCtrl.current?.abort();
     abortCtrl.current = new AbortController();
@@ -541,7 +552,7 @@ export function GippyChat({ onClose }: Props) {
     }
   }, [messages, busy]);
 
-  const reset = () => { abortCtrl.current?.abort(); setMessages([]); setBusy(false); };
+  const reset = () => { ymGoal("GIPPY_CHAT_RESET"); abortCtrl.current?.abort(); setMessages([]); setBusy(false); };
 
   const autoResize = (el: HTMLTextAreaElement) => {
     el.style.height = "auto";
@@ -641,7 +652,7 @@ export function GippyChat({ onClose }: Props) {
 
             <div className="flex flex-col gap-2 w-full">
               {SUGGESTIONS.map((q, i) => (
-                <button key={i} onClick={() => send(q)}
+                <button key={i} onClick={() => { ymGoal("GIPPY_CHAT_SUGGESTION_CLICK"); send(q); }}
                   className={`flex items-center gap-3 text-left px-4 py-3 rounded-xl transition-all group ${suggestionBtn}`}>
                   <ChevronRight className="w-3.5 h-3.5 text-violet-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                   <span className={`text-sm transition-colors ${suggestionText}`}>{q}</span>

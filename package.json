@@ -12,6 +12,7 @@
     "generate:agreement": "node scripts/generate-agreement.js"
   },
   "dependencies": {
+    "@types/nodemailer": "^8.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cookie-parser": "^1.4.7",
@@ -20,6 +21,7 @@
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
     "next-sitemap": "^4.2.3",
+    "nodemailer": "^8.0.10",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

@@ -4,6 +4,12 @@ import { useState, useEffect } from "react";
 import { X, Sparkles } from "lucide-react";
 import { GippyLogo } from "@/components/ui/GippyLogo";
 
+function ymGoal(goal: string) {
+  if (typeof window === "undefined" || !(window as any).ym) return;
+  const id = process.env.NEXT_PUBLIC_YM_COUNTER_ID;
+  if (id) (window as any).ym(id, "reachGoal", goal);
+}
+
 const STORAGE_KEY = "gippy_notif_seen_v1";
 const SHOW_DELAY_MS = 2000;
 const AUTO_DISMISS_MS = 12000;
@@ -18,7 +24,7 @@ export function GippyNotification({ onOpen }: Props) {
 
   useEffect(() => {
     if (localStorage.getItem(STORAGE_KEY)) return;
-    const t = setTimeout(() => setVisible(true), SHOW_DELAY_MS);
+    const t = setTimeout(() => { setVisible(true); ymGoal("GIPPY_NOTIF_SHOWN"); }, SHOW_DELAY_MS);
     return () => clearTimeout(t);
   }, []);
 
@@ -29,13 +35,17 @@ export function GippyNotification({ onOpen }: Props) {
   }, [visible]);
 
   const dismiss = () => {
+    ymGoal("GIPPY_NOTIF_DISMISS");
     setExiting(true);
     localStorage.setItem(STORAGE_KEY, "1");
     setTimeout(() => setVisible(false), 260);
   };
 
   const handleOpen = () => {
-    dismiss();
+    ymGoal("GIPPY_NOTIF_OPEN");
+    setExiting(true);
+    localStorage.setItem(STORAGE_KEY, "1");
+    setTimeout(() => setVisible(false), 260);
     setTimeout(onOpen, 80);
   };
 

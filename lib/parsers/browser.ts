@@ -19,3 +19,9 @@ export async function closeBrowser(): Promise<void> {
     browserInstance = null;
   }
 }
+
+// Graceful shutdown — закрываем браузер при завершении процесса
+const shutdown = () => { closeBrowser().catch(() => {}); };
+process.once('beforeExit', shutdown);
+process.once('SIGTERM', shutdown);
+process.once('SIGINT', shutdown);

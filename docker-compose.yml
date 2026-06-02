@@ -9,6 +9,9 @@ services:
       - .env
     environment:
       NODE_ENV: production
+      CFA_DATA_DIR: /app/data
+    volumes:
+      - cfa-data:/app/data
     healthcheck:
       test:
         [
@@ -29,3 +32,7 @@ services:
 networks:
   cfa-network:
     driver: bridge
+
+volumes:
+  cfa-data:
+    driver: local

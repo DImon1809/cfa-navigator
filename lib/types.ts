@@ -29,6 +29,8 @@ export interface CfaItem {
   minAmount: string;
   minAmountNumeric: number;
   maxAmount?: string;
+  hardcap?: string;
+  hardcapNumeric?: number;
   access: InvestorType[];
   status: CfaStatus;
   badge?: string | null;
@@ -37,6 +39,9 @@ export interface CfaItem {
   description?: string;
   features?: string[];
   releaseDate?: string;
+  placementStart?: string;
+  placementEnd?: string;
+  maturityDate?: string;
   link: string;
   logoUrl?: string;
 }

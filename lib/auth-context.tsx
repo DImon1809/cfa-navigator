@@ -71,15 +71,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (data: LoginRequest) => {
     await api.auth.login(data);
     localStorage.setItem(SESSION_KEY, "1");
-    loadedRef.current = false;
-    // /me будет вызван кабинет-страницей после навигации
+    loadedRef.current = true;
+    setUser(await api.auth.me());
   }, []);
 
   const register = useCallback(async (data: RegisterRequest) => {
     await api.auth.register(data);
     localStorage.setItem(SESSION_KEY, "1");
-    loadedRef.current = false;
-    // /me будет вызван кабинет-страницей после навигации
+    loadedRef.current = true;
+    setUser(await api.auth.me());
   }, []);
 
   const logout = useCallback(async () => {

@@ -1,6 +1,5 @@
-// Base URLs are injected from Docker environment (.env → docker-compose.yml)
-const GATEWAY_URL =
-  process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? 'http://localhost:8080';
+// Auth/CFA requests go through Next.js proxy routes → backend (API_BACKEND_URL on server)
+const GATEWAY_URL = '';
 
 const OAUTH_BASE_URL =
   process.env.NEXT_PUBLIC_API_OAUTH_URL ?? 'http://localhost:8081';

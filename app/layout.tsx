@@ -12,7 +12,7 @@ const inter = Inter({
   display: "swap",
 });
 
-const siteUrl = process.env.SITE_URL || "https://cfa-navigator.ru";
+const siteUrl = process.env.SITE_URL || "https://цфа-навигатор.рф";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

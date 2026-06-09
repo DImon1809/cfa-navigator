@@ -5,11 +5,19 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    env_file:
-      - .env
     environment:
       NODE_ENV: production
       CFA_DATA_DIR: /app/data
+      API_BACKEND_URL: http://cfa-gateway-service:8080
+      SITE_URL: https://цфа-навигатор.рф
+      NEXT_PUBLIC_API_OAUTH_URL: https://цфа-навигатор.рф
+      GIPPY_API_KEY: sk-pnHESwg7bFfIw27Gea46pt4x0mUsJ91Z
+      GIPPY_MODEL: gpt-4.1-nano
+      SMTP_HOST: smtp.mail.ru
+      SMTP_PORT: "465"
+      SMTP_USER: klimov.dmitrij.02@mail.ru
+      SMTP_PASS: n5uM1M0JBfZf7mNZTzw0
+      CHAT_LOG_TO: klimovd131@gmail.com
     volumes:
       - cfa-data:/app/data
     healthcheck:
@@ -28,10 +36,13 @@ services:
       start_period: 40s
     networks:
       - cfa-network
+      - cfa-infrastructure_internal
 
 networks:
   cfa-network:
     driver: bridge
+  cfa-infrastructure_internal:
+    external: true
 
 volumes:
   cfa-data:

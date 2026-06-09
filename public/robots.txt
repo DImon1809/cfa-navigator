@@ -37,7 +37,7 @@ User-agent: SberBot
 Allow: /
 
 # Host
-Host: http://localhost:3000
+Host: https://цфа-навигатор.рф
 
 # Sitemaps
-Sitemap: http://localhost:3000/sitemap.xml
+Sitemap: https://цфа-навигатор.рф/sitemap.xml

@@ -265,8 +265,8 @@ export default async function PlatformPage({ params }: Props) {
                     <p className="mb-3 text-sm font-semibold text-green-700 dark:text-green-400">Плюсы</p>
                     <ul className="space-y-2">
                       {platform.pros.map((item) => (
-                        <li key={item} className="flex items-start gap-2 text-sm text-foreground">
-                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+                        <li key={item} className="flex items-start gap-2 text-sm text-green-900 dark:text-green-100">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />
                           {item}
                         </li>
                       ))}
@@ -276,8 +276,8 @@ export default async function PlatformPage({ params }: Props) {
                     <p className="mb-3 text-sm font-semibold text-red-700 dark:text-red-400">Минусы</p>
                     <ul className="space-y-2">
                       {platform.cons.map((item) => (
-                        <li key={item} className="flex items-start gap-2 text-sm text-foreground">
-                          <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                        <li key={item} className="flex items-start gap-2 text-sm text-red-900 dark:text-red-100">
+                          <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />
                           {item}
                         </li>
                       ))}

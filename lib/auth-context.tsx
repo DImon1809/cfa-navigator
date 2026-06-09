@@ -77,9 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(async (data: RegisterRequest) => {
     await api.auth.register(data);
-    localStorage.setItem(SESSION_KEY, "1");
-    loadedRef.current = true;
-    setUser(await api.auth.me());
+    // Registration only creates the account — user must login separately to get a token
   }, []);
 
   const logout = useCallback(async () => {

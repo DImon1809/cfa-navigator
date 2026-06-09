@@ -20,6 +20,7 @@ export default function RegisterPage() {
     passwordConfirm: "",
   });
   const [agreed, setAgreed] = useState(false);
+  const [subscribeNewsletter, setSubscribeNewsletter] = useState(false);
   const [errors, setErrors] = useState<
     Partial<typeof form> & { form?: string; agreed?: string }
   >({});
@@ -76,6 +77,15 @@ export default function RegisterPage() {
         firstName: form.firstName.trim() || undefined,
         lastName: form.lastName.trim() || undefined,
       });
+
+      if (subscribeNewsletter) {
+        fetch("/api/newsletter", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: form.email.trim() }),
+        }).catch(() => { /* fire-and-forget */ });
+      }
+
       router.replace("/cabinet/login");
     } catch (err) {
       const msg =
@@ -215,6 +225,19 @@ export default function RegisterPage() {
                 <p className="mt-1.5 text-sm text-danger">{errors.agreed}</p>
               )}
             </div>
+
+            {/* Рассылка */}
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={subscribeNewsletter}
+                onChange={(e) => setSubscribeNewsletter(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-primary cursor-pointer"
+              />
+              <span className="text-sm text-muted-foreground leading-snug">
+                Получать рассылку о новых выпусках ЦФА
+              </span>
+            </label>
 
             {errors.form && (
               <p className="rounded-lg bg-danger/5 border border-danger/20 px-4 py-3 text-sm text-danger">

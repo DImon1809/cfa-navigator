@@ -161,6 +161,16 @@ const sections: ArticleSection[] = [
     text: 'Пришлём конкретные выпуски под вашу сумму и срок — с доходностью, эмитентами и условиями. Бесплатно, без спама.',
     buttonLabel: 'Получить подборку ЦФА',
   },
+
+  { type: 'divider' },
+
+  {
+    type: 'cta',
+    variant: 'telegram',
+    title: 'Разбираемся в ЦФА вместе',
+    text: 'В нашем Telegram-канале — понятные объяснения, новые выпуски и актуальные новости рынка цифровых финансовых активов.',
+    buttonLabel: 'Подписаться на @cfa_navigation_rf',
+  },
 ];
 
 export default sections;

@@ -1,8 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Send, User, ChevronRight, RotateCcw, Sun, Moon } from "lucide-react";
+import Link from "next/link";
+import { X, Send, User, ChevronRight, RotateCcw, Sun, Moon, Lock } from "lucide-react";
 import { GippyLogo } from "@/components/ui/GippyLogo";
+import { useAuth } from "@/lib/auth-context";
+
+const GUEST_PROMPT_LIMIT = 2;
+const GUEST_COUNT_KEY = "gippy_prompt_count";
+const CHAT_SESSION_KEY = "gippy_session_messages";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -457,15 +463,30 @@ function ymGoal(goal: string) {
 interface Props { onClose: () => void; }
 
 export function GippyChat({ onClose }: Props) {
+  const { isAuthenticated } = useAuth();
   const [isDark, setIsDark] = useState(true);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = sessionStorage.getItem(CHAT_SESSION_KEY);
+      return stored ? (JSON.parse(stored) as ChatMessage[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [closing, setClosing] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortCtrl = useRef<AbortController | null>(null);
+
+  const [guestCount, setGuestCount] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    return parseInt(localStorage.getItem(GUEST_COUNT_KEY) ?? "0", 10);
+  });
+  const isLimited = !isAuthenticated && guestCount >= GUEST_PROMPT_LIMIT;
 
   const handleClose = () => {
     ymGoal("GIPPY_CHAT_CLOSE");
@@ -475,6 +496,13 @@ export function GippyChat({ onClose }: Props) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    const toStore = messages.filter((m) => !m.streaming);
+    if (toStore.length > 0) {
+      sessionStorage.setItem(CHAT_SESSION_KEY, JSON.stringify(toStore));
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -494,6 +522,12 @@ export function GippyChat({ onClose }: Props) {
     setInput("");
     setBusy(true);
     ymGoal("GIPPY_CHAT_MESSAGE_SENT");
+
+    if (!isAuthenticated) {
+      const next = guestCount + 1;
+      setGuestCount(next);
+      localStorage.setItem(GUEST_COUNT_KEY, String(next));
+    }
 
     abortCtrl.current?.abort();
     abortCtrl.current = new AbortController();
@@ -550,9 +584,15 @@ export function GippyChat({ onClose }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [messages, busy]);
+  }, [messages, busy, isAuthenticated, guestCount]);
 
-  const reset = () => { ymGoal("GIPPY_CHAT_RESET"); abortCtrl.current?.abort(); setMessages([]); setBusy(false); };
+  const reset = () => {
+    ymGoal("GIPPY_CHAT_RESET");
+    abortCtrl.current?.abort();
+    setMessages([]);
+    setBusy(false);
+    sessionStorage.removeItem(CHAT_SESSION_KEY);
+  };
 
   const autoResize = (el: HTMLTextAreaElement) => {
     el.style.height = "auto";
@@ -713,31 +753,73 @@ export function GippyChat({ onClose }: Props) {
 
       {/* Input */}
       <div className={`flex-none border-t ${border} ${panelBg} px-4 sm:px-6 py-4`}>
-        <div className="flex items-end gap-2 max-w-3xl mx-auto">
-          <textarea
-            ref={textareaRef}
-            rows={1}
-            value={input}
-            disabled={busy}
-            onChange={(e) => { setInput(e.target.value); autoResize(e.target); }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); }
-            }}
-            placeholder="Спросите о ЦФА..."
-            className={`gippy-textarea flex-1 border rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-1 transition-all disabled:opacity-50 ${textareaStyle}`}
-            style={{ minHeight: 44, maxHeight: 128 }}
-          />
-          <button
-            onClick={() => send(input)}
-            disabled={!input.trim() || busy}
-            className="w-11 h-11 flex-none flex items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-violet-700 hover:from-violet-500 hover:to-violet-600 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-violet-500/30 hover:shadow-lg"
-            aria-label="Отправить">
-            <Send className="w-4 h-4 text-white" />
-          </button>
-        </div>
-        <p className={`text-center text-[10px] mt-2.5 ${textHint}`}>
-          Не является индивидуальной инвестиционной рекомендацией · Инвестиции сопряжены с рисками
-        </p>
+        {isLimited ? (
+          <div className="max-w-3xl mx-auto text-center py-2">
+            <p className={`text-sm font-medium mb-1.5 ${textPrimary}`}>
+              Вы использовали {GUEST_PROMPT_LIMIT} бесплатных вопроса
+            </p>
+            <p className={`text-xs mb-4 ${textSecondary}`}>
+              Зарегистрируйтесь бесплатно, чтобы продолжить общение с Gippy
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Link
+                href="/cabinet/register"
+                onClick={handleClose}
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-br from-violet-600 to-violet-700 hover:from-violet-500 hover:to-violet-600 transition-all shadow-md hover:shadow-violet-500/30"
+              >
+                Зарегистрироваться
+              </Link>
+              <Link
+                href="/cabinet/login"
+                onClick={handleClose}
+                className={`px-5 py-2.5 rounded-xl text-sm font-medium border transition-all ${isDark ? "border-white/15 text-white/70 hover:border-white/30 hover:text-white" : "border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-900"}`}
+              >
+                Войти
+              </Link>
+              <a
+                href="https://t.me/cfa_navigation_rf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`px-5 py-2.5 rounded-xl text-sm font-medium border transition-all ${isDark ? "border-blue-500/30 text-blue-400 hover:border-blue-400/60 hover:text-blue-300" : "border-blue-400/40 text-blue-600 hover:border-blue-500 hover:text-blue-700"}`}
+              >
+                Telegram-канал
+              </a>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-end gap-2 max-w-3xl mx-auto">
+              <textarea
+                ref={textareaRef}
+                rows={1}
+                value={input}
+                disabled={busy}
+                onChange={(e) => { setInput(e.target.value); autoResize(e.target); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); }
+                }}
+                placeholder="Спросите о ЦФА..."
+                className={`gippy-textarea flex-1 border rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-1 transition-all disabled:opacity-50 ${textareaStyle}`}
+                style={{ minHeight: 44, maxHeight: 128 }}
+              />
+              <button
+                onClick={() => send(input)}
+                disabled={!input.trim() || busy}
+                className="w-11 h-11 flex-none flex items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-violet-700 hover:from-violet-500 hover:to-violet-600 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-violet-500/30 hover:shadow-lg"
+                aria-label="Отправить">
+                <Send className="w-4 h-4 text-white" />
+              </button>
+            </div>
+            {!isAuthenticated && (
+              <p className={`text-center text-[10px] mt-2 ${textHint}`}>
+                Осталось бесплатных вопросов: {Math.max(0, GUEST_PROMPT_LIMIT - guestCount)}
+              </p>
+            )}
+            <p className={`text-center text-[10px] mt-1.5 ${textHint}`}>
+              Не является индивидуальной инвестиционной рекомендацией · Инвестиции сопряжены с рисками
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

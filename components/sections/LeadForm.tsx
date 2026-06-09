@@ -126,7 +126,7 @@ export function LeadForm() {
               </p>
               <Button
                 size="lg"
-                onClick={() => window.open('https://t.me/cfa_navigator', '_blank')}
+                onClick={() => window.open('https://t.me/cfa_navigation_rf', '_blank')}
                 className="bg-primary"
               >
                 Перейти в Telegram

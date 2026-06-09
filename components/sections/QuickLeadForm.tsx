@@ -136,8 +136,7 @@ export function QuickLeadForm() {
 
       if (!response.ok) {
         console.warn('⚠️ Ошибка отправки:', response.status);
-      } else {
-        console.log('✅ Данные отправлены');
+        return;
       }
 
       setIsSuccess(true);

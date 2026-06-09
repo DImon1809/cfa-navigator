@@ -829,12 +829,6 @@ export function CfaCards() {
           </div>
         )}
 
-        {/* Сноска об источниках */}
-        {!loading && items.length > 0 && (
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            Источники: цфа.рф · cbonds.ru · Обновляется каждый час
-          </p>
-        )}
       </div>
 
       {/* Калькулятор */}

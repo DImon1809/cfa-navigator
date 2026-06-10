@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseAllSources, parseAllSourcesDebug } from '@/lib/parsers';
 import { readStore, writeStore, clearMemoryStore } from '@/lib/parsers/store';
+import { notifyNewCfa } from '@/lib/cfa-notify';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,15 +40,36 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/parse-cfa — принудительное обновление (сбрасывает кэш и парсит заново)
-export async function POST() {
+// POST /api/parse-cfa              — принудительное обновление (сбрасывает кэш и парсит заново)
+// POST /api/parse-cfa?test=true   — то же + рассылка по последнему ЦФА без проверки на новизну
+export async function POST(req: NextRequest) {
+  const isTest = req.nextUrl.searchParams.get('test') === 'true';
+
   try {
+    // Читаем старые данные до сброса, чтобы найти новые ЦФА
+    const prevStore = await readStore();
+    const prevIds = new Set((prevStore?.allItems ?? []).map((i) => i.id));
+
     clearMemoryStore();
     const result = await parseAllSources();
     await writeStore(result);
+
+    // Уведомляем подписчиков о новых выпусках (fire-and-forget)
+    const freshItems = isTest
+      ? result.allItems.slice(-1)
+      : result.allItems.filter((i) => !prevIds.has(i.id));
+
+    if (freshItems.length > 0) {
+      notifyNewCfa(freshItems).catch((err) =>
+        console.error('[parse-cfa] Ошибка рассылки:', err)
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       items: result.allItems.length,
+      newItems: freshItems.length,
+      testMode: isTest || undefined,
       errors: result.errors,
       fetchedAt: result.fetchedAt,
     });

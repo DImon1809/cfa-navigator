@@ -6,8 +6,8 @@ import { X, Send, User, ChevronRight, RotateCcw, Sun, Moon, Lock } from "lucide-
 import { GippyLogo } from "@/components/ui/GippyLogo";
 import { useAuth } from "@/lib/auth-context";
 
-const GUEST_PROMPT_LIMIT = 2;
-const GUEST_COUNT_KEY = "gippy_prompt_count";
+export const GUEST_PROMPT_LIMIT = 2;
+export const GUEST_COUNT_KEY = "gippy_prompt_count";
 export const CHAT_SESSION_KEY = "gippy_session_messages";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

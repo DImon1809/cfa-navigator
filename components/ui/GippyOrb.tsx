@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X, Maximize2, Send, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Maximize2, Send, ChevronDown, ChevronUp, Lock } from "lucide-react";
+import Link from "next/link";
 import { GippyLogo } from "@/components/ui/GippyLogo";
 import { useGippyOrb } from "@/context/gippy-orb-context";
 import { useTheme } from "@/lib/theme-context";
@@ -11,7 +12,10 @@ import {
   parseSegments,
   renderMarkdown,
   CHAT_SESSION_KEY,
+  GUEST_PROMPT_LIMIT,
+  GUEST_COUNT_KEY,
 } from "@/components/ui/GippyChat";
+import { useAuth } from "@/lib/auth-context";
 import type { BarChartData, LineChartData } from "@/components/ui/GippyChat";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -37,6 +41,13 @@ export function GippyOrb({ onClose, onOpenFullChat }: Props) {
   } = useGippyOrb();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const { isAuthenticated } = useAuth();
+
+  const [guestCount, setGuestCount] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    return parseInt(localStorage.getItem(GUEST_COUNT_KEY) ?? "0", 10);
+  });
+  const isLimited = !isAuthenticated && guestCount >= GUEST_PROMPT_LIMIT;
 
   const [orbX, setOrbX] = useState(0);
   const [orbY, setOrbY] = useState(0);
@@ -403,12 +414,27 @@ export function GippyOrb({ onClose, onOpenFullChat }: Props) {
     await sleep(1500);
     console.log("[GippyOrb] runYieldTour START, triggering yield sort...");
     triggerYieldSortRef.current();
-    // Wait for CfaCards to re-sort and call setTourCfaIds (one React render cycle ≈ 50ms, 350ms is safe)
-    await sleep(350);
-    const ids = tourIdsRef.current.slice(0, 3);
-    console.log("[GippyOrb] runYieldTour ids after 350ms:", ids);
+
+    // Poll for tourCfaIds — CfaCards updates context asynchronously after re-sort
+    let ids: string[] = [];
+    for (let attempt = 0; attempt < 12 && ids.length === 0; attempt++) {
+      await sleep(200);
+      ids = tourIdsRef.current.slice(0, 3);
+      console.log(`[GippyOrb] runYieldTour attempt ${attempt + 1}: ids=`, ids);
+    }
+
+    // DOM fallback: read visible card IDs in DOM order (already yield-sorted)
     if (ids.length === 0) {
-      console.warn("[GippyOrb] runYieldTour: tourIdsRef still empty!");
+      ids = Array.from(document.querySelectorAll<HTMLElement>("[data-cfa-id]"))
+        .filter((el) => el.getBoundingClientRect().height > 0)
+        .slice(0, 3)
+        .map((el) => el.getAttribute("data-cfa-id") ?? "")
+        .filter(Boolean);
+      console.log("[GippyOrb] runYieldTour DOM fallback ids:", ids);
+    }
+
+    if (ids.length === 0) {
+      console.warn("[GippyOrb] runYieldTour: no IDs found anywhere!");
       return;
     }
     await runTourFromPanelRef.current?.(ids);
@@ -432,7 +458,14 @@ export function GippyOrb({ onClose, onOpenFullChat }: Props) {
 
   // When AI finishes responding and a recommendation tour is pending, run yield tour
   useEffect(() => {
+    console.log(
+      "[GippyOrb] yieldEffect pendingYieldTour=",
+      pendingYieldTour,
+      "busy=",
+      busy,
+    );
     if (!pendingYieldTour || busy) return;
+    console.log("[GippyOrb] yieldEffect → calling runYieldTour");
     setPendingYieldTour(false);
     runYieldTourRef.current();
   }, [pendingYieldTour, busy]);
@@ -636,13 +669,19 @@ export function GippyOrb({ onClose, onOpenFullChat }: Props) {
       "busy=",
       busy,
     );
-    if (!q || busy) return;
+    if (!q || busy || isLimited) return;
     setInput("");
+
+    if (!isAuthenticated) {
+      const next = guestCount + 1;
+      setGuestCount(next);
+      localStorage.setItem(GUEST_COUNT_KEY, String(next));
+    }
+
     if (isRecommendQuery(q)) {
       console.log("[GippyOrb] pendingYieldTour = true");
       setPendingYieldTour(true);
-    }
-    sendToAI(q, cfaContextRef.current || undefined);
+    } else sendToAI(q, cfaContextRef.current || undefined);
   };
 
   const handleClose = () => {
@@ -994,57 +1033,124 @@ export function GippyOrb({ onClose, onOpenFullChat }: Props) {
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
+          {/* Input / Lock gate */}
           <div
             style={{
-              padding: "10px 12px",
+              padding: isLimited ? "14px 14px" : "10px 12px",
               borderTop: `1px solid ${tk.footerBorder}`,
-              display: "flex",
-              gap: 8,
               background: tk.footerBg,
               flexShrink: 0,
             }}
           >
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              disabled={busy}
-              placeholder="Задайте вопрос о ЦФА..."
-              style={{
-                flex: 1,
-                background: tk.inputBg,
-                border: `1px solid ${tk.inputBorder}`,
-                borderRadius: 10,
-                padding: "7px 12px",
-                fontSize: 12,
-                color: tk.inputColor,
-                caretColor: tk.inputColor,
-                outline: "none",
-                fontFamily: "inherit",
-                transition: "border-color 0.15s",
-                opacity: busy ? 0.5 : 1,
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "rgba(124,58,237,0.45)";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = tk.inputBorder;
-              }}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || busy}
-              className="gippy-orb-send-btn"
-              aria-label="Отправить"
-            >
-              <Send size={14} color="white" />
-            </button>
+            {isLimited ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: isDark ? "rgba(124,58,237,0.15)" : "rgba(124,58,237,0.08)",
+                    border: `1px solid ${tk.badgeBorder}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Lock size={16} color={tk.badgeColor} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: tk.titleColor, margin: 0 }}>
+                    Вы использовали {GUEST_PROMPT_LIMIT} бесплатных вопроса
+                  </p>
+                  <p style={{ fontSize: 11, color: isDark ? "rgba(255,255,255,0.45)" : "#6b7280", margin: "4px 0 0" }}>
+                    Зарегистрируйтесь, чтобы продолжить
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                  <Link
+                    href="/cabinet/register"
+                    style={{
+                      padding: "7px 14px",
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "white",
+                      background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
+                      textDecoration: "none",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Зарегистрироваться
+                  </Link>
+                  <Link
+                    href="/cabinet/login"
+                    style={{
+                      padding: "7px 14px",
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: tk.badgeColor,
+                      background: isDark ? "rgba(124,58,237,0.1)" : "rgba(124,58,237,0.06)",
+                      border: `1px solid ${tk.badgeBorder}`,
+                      textDecoration: "none",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Войти
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                    disabled={busy}
+                    placeholder="Задайте вопрос о ЦФА..."
+                    style={{
+                      flex: 1,
+                      background: tk.inputBg,
+                      border: `1px solid ${tk.inputBorder}`,
+                      borderRadius: 10,
+                      padding: "7px 12px",
+                      fontSize: 12,
+                      color: tk.inputColor,
+                      caretColor: tk.inputColor,
+                      outline: "none",
+                      fontFamily: "inherit",
+                      transition: "border-color 0.15s",
+                      opacity: busy ? 0.5 : 1,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = "rgba(124,58,237,0.45)";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = tk.inputBorder;
+                    }}
+                  />
+                  <button
+                    onClick={handleSend}
+                    disabled={!input.trim() || busy}
+                    className="gippy-orb-send-btn"
+                    aria-label="Отправить"
+                  >
+                    <Send size={14} color="white" />
+                  </button>
+                </div>
+                {!isAuthenticated && (
+                  <p style={{ textAlign: "center", fontSize: 10, color: tk.inputPlaceholder, marginTop: 5 }}>
+                    Осталось бесплатных вопросов: {Math.max(0, GUEST_PROMPT_LIMIT - guestCount)}
+                  </p>
+                )}
+              </>
+            )}
           </div>
         </div>
       </>

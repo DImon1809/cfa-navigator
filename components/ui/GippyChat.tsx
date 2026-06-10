@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 
 const GUEST_PROMPT_LIMIT = 2;
 const GUEST_COUNT_KEY = "gippy_prompt_count";
-const CHAT_SESSION_KEY = "gippy_session_messages";
+export const CHAT_SESSION_KEY = "gippy_session_messages";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,13 +18,13 @@ interface ChatMessage {
   streaming?: boolean;
 }
 
-interface BarChartData {
+export interface BarChartData {
   type?: "bar";
   title: string;
   data: { label: string; value: number; color: string }[];
 }
 
-interface LineChartData {
+export interface LineChartData {
   type: "line";
   title: string;
   unit?: string;
@@ -93,7 +93,7 @@ function smoothPath(pts: { x: number; y: number }[]): string {
 
 // ─── BarChart ─────────────────────────────────────────────────────────────────
 
-function BarChart({ chart, isDark }: { chart: BarChartData; isDark: boolean }) {
+export function BarChart({ chart, isDark }: { chart: BarChartData; isDark: boolean }) {
   const [visible, setVisible] = useState(false);
   const max = Math.max(...chart.data.map((d) => d.value), 1);
 
@@ -140,7 +140,7 @@ function BarChart({ chart, isDark }: { chart: BarChartData; isDark: boolean }) {
 
 let lineChartCounter = 0;
 
-function LineChart({ chart, isDark }: { chart: LineChartData; isDark: boolean }) {
+export function LineChart({ chart, isDark }: { chart: LineChartData; isDark: boolean }) {
   const uid = useRef(`glc${++lineChartCounter}`).current;
   const pathRef = useRef<SVGPathElement>(null);
   const [pathLen, setPathLen] = useState(9999);
@@ -407,26 +407,101 @@ function LineChart({ chart, isDark }: { chart: LineChartData; isDark: boolean })
 
 // ─── Segment parser ───────────────────────────────────────────────────────────
 
-function parseSegments(raw: string): Segment[] {
+function isChartData(obj: unknown): obj is ChartData {
+  if (!obj || typeof obj !== "object") return false;
+  const o = obj as Record<string, unknown>;
+  return (
+    typeof o.title === "string" &&
+    (Array.isArray(o.data) || Array.isArray(o.points))
+  );
+}
+
+// Extracts the first complete balanced {...} JSON object from a string.
+// Returns null if the object is incomplete (still streaming).
+function extractBalancedJson(s: string): string | null {
+  const start = s.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (escaped) { escaped = false; continue; }
+    if (c === "\\" && inString) { escaped = true; continue; }
+    if (c === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === "{") depth++;
+    if (c === "}") { depth--; if (depth === 0) return s.slice(start, i + 1); }
+  }
+  return null; // incomplete
+}
+
+function repairJson(s: string): string {
+  return s
+    // Missing comma+quote: number followed by bare word then quote
+    // e.g. "value":21color":"..." → "value":21,"color":"..."
+    .replace(/(\d+)(\s*)([a-zA-Z_]\w*)"/g, (_, num, ws, word) => `${num},${ws}"${word}"`)
+    // Missing comma between } and { in arrays
+    .replace(/}(\s*)\{/g, '},$1{')
+    // Trailing comma before ] or }
+    .replace(/,(\s*)([\]}])/g, '$1$2');
+}
+
+function tryParseChart(raw: string): ChartData | null {
+  const attempt = (s: string): ChartData | null => {
+    try {
+      const parsed = JSON.parse(s);
+      return isChartData(parsed) ? (parsed as ChartData) : null;
+    } catch {
+      return null;
+    }
+  };
+  return attempt(raw.trim()) ?? attempt(repairJson(raw.trim()));
+}
+
+export function parseSegments(raw: string): Segment[] {
   const segments: Segment[] = [];
-  const regex = /```chart\n([\s\S]*?)```/g;
+  // Match properly closed blocks OR blocks terminated by \n--- (AI sometimes uses --- instead of ```)
+  const regex = /```(?:chart|json)?\n([\s\S]*?)(?:```|(?=\n---))/g;
   let cursor = 0, m: RegExpExecArray | null;
   while ((m = regex.exec(raw)) !== null) {
     if (m.index > cursor) segments.push({ type: "text", content: raw.slice(cursor, m.index) });
-    try {
-      segments.push({ type: "chart", content: JSON.parse(m[1].trim()) as ChartData });
-    } catch {
+    const chart = tryParseChart(m[1]);
+    if (chart) {
+      segments.push({ type: "chart", content: chart });
+    } else {
       segments.push({ type: "text", content: m[0] });
     }
     cursor = m.index + m[0].length;
   }
+
+  // Handle unclosed code block — render chart as soon as JSON object is balanced,
+  // without waiting for closing ```. Critical for typewriter streaming.
+  const tail = raw.slice(cursor);
+  const fenceMatch = tail.match(/```(?:chart|json)?\n/);
+  if (fenceMatch) {
+    const fenceStart = tail.indexOf(fenceMatch[0]);
+    const beforeBlock = tail.slice(0, fenceStart);
+    if (beforeBlock) segments.push({ type: "text", content: beforeBlock });
+    const afterFence = tail.slice(fenceStart + fenceMatch[0].length);
+    const jsonStr = extractBalancedJson(afterFence);
+    if (jsonStr) {
+      const chart = tryParseChart(jsonStr);
+      if (chart) {
+        segments.push({ type: "chart", content: chart });
+        return segments;
+      }
+    }
+    // JSON not yet complete — fall through and render tail as text
+  }
+
   if (cursor < raw.length) segments.push({ type: "text", content: raw.slice(cursor) });
   return segments;
 }
 
 // ─── Markdown renderer ────────────────────────────────────────────────────────
 
-function renderMarkdown(text: string, isDark: boolean): string {
+export function renderMarkdown(text: string, isDark: boolean): string {
   const h3 = isDark
     ? 'class="font-bold text-white/90 mt-3 mb-1 text-xs uppercase tracking-wide"'
     : 'class="font-bold text-gray-800 mt-3 mb-1 text-xs uppercase tracking-wide"';
@@ -460,9 +535,12 @@ function ymGoal(goal: string) {
 
 // ─── GippyChat component ──────────────────────────────────────────────────────
 
-interface Props { onClose: () => void; }
+interface Props {
+  onClose: () => void;
+  onBeginnerTourRequest?: () => void;
+}
 
-export function GippyChat({ onClose }: Props) {
+export function GippyChat({ onClose, onBeginnerTourRequest }: Props) {
   const { isAuthenticated } = useAuth();
   const [isDark, setIsDark] = useState(true);
 
@@ -479,6 +557,13 @@ export function GippyChat({ onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [closing, setClosing] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollRafRef = useRef<number | null>(null);
+  // Typewriter
+  const pendingRef = useRef('');
+  const revealedRef = useRef(0);
+  const typingRafRef = useRef<number | null>(null);
+  const streamDoneRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortCtrl = useRef<AbortController | null>(null);
 
@@ -488,14 +573,47 @@ export function GippyChat({ onClose }: Props) {
   });
   const isLimited = !isAuthenticated && guestCount >= GUEST_PROMPT_LIMIT;
 
+  const cfaContextRef = useRef<string>("");
+
+  // Preload live CFA data for AI context
+  useEffect(() => {
+    fetch("/api/parse-cfa")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data?.allItems) return;
+        const open = (data.allItems as Record<string, unknown>[]).filter((i) => i.status === "open");
+        const lines = open.slice(0, 25).map((i) => {
+          const access = Array.isArray(i.access) ? (i.access as string[]).join("+") : String(i.access ?? "");
+          return `• ${i.shortName ?? i.name} | ${i.operator} | ${i.type} | ${i.yield} | ${i.term} | от ${i.minAmount} | ${access}`;
+        });
+        cfaContextRef.current = `Открытых выпусков: ${open.length}\n${lines.join("\n")}`;
+      })
+      .catch(() => {});
+  }, []);
+
   const handleClose = () => {
     ymGoal("GIPPY_CHAT_CLOSE");
     setClosing(true);
     setTimeout(() => onClose(), 220);
   };
 
+  // Eased RAF scroll: always follows content, never interrupted by user scroll
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (scrollRafRef.current) return; // already running — let it catch up on its own
+
+    const tick = () => {
+      const container = scrollContainerRef.current;
+      if (!container) { scrollRafRef.current = null; return; }
+      const diff = container.scrollHeight - container.clientHeight - container.scrollTop;
+      if (diff > 1) {
+        container.scrollTop += Math.max(2, diff * 0.18);
+        scrollRafRef.current = requestAnimationFrame(tick);
+      } else {
+        container.scrollTop = container.scrollHeight;
+        scrollRafRef.current = null;
+      }
+    };
+    scrollRafRef.current = requestAnimationFrame(tick);
   }, [messages]);
 
   useEffect(() => {
@@ -532,11 +650,52 @@ export function GippyChat({ onClose }: Props) {
     abortCtrl.current?.abort();
     abortCtrl.current = new AbortController();
 
+    // Reset typewriter state for new message
+    pendingRef.current = '';
+    revealedRef.current = 0;
+    streamDoneRef.current = false;
+    if (typingRafRef.current) { cancelAnimationFrame(typingRafRef.current); typingRafRef.current = null; }
+
+    const startTyping = () => {
+      if (typingRafRef.current) return;
+      const tick = () => {
+        const full = pendingRef.current;
+        const cur = revealedRef.current;
+        if (cur >= full.length) {
+          if (streamDoneRef.current) {
+            setMessages((m) => {
+              const copy = [...m];
+              if (copy[copy.length - 1]?.streaming) {
+                copy[copy.length - 1] = { role: 'assistant', content: full, streaming: false };
+              }
+              return copy;
+            });
+            typingRafRef.current = null;
+          } else {
+            typingRafRef.current = requestAnimationFrame(tick);
+          }
+          return;
+        }
+        const next = Math.min(cur + 3, full.length);
+        revealedRef.current = next;
+        setMessages((m) => {
+          const copy = [...m];
+          copy[copy.length - 1] = { role: 'assistant', content: full.slice(0, next), streaming: true };
+          return copy;
+        });
+        typingRafRef.current = requestAnimationFrame(tick);
+      };
+      typingRafRef.current = requestAnimationFrame(tick);
+    };
+
     try {
       const res = await fetch("/api/gippy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })) }),
+        body: JSON.stringify({
+          messages: history.map(({ role, content }) => ({ role, content })),
+          cfaContext: cfaContextRef.current || undefined,
+        }),
         signal: abortCtrl.current.signal,
       });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
@@ -556,21 +715,16 @@ export function GippyChat({ onClose }: Props) {
             const delta = (JSON.parse(payload) as { choices: [{ delta: { content?: string } }] })
               .choices[0].delta.content ?? "";
             acc += delta;
-            setMessages((m) => {
-              const copy = [...m];
-              copy[copy.length - 1] = { role: "assistant", content: acc, streaming: true };
-              return copy;
-            });
+            pendingRef.current = acc;
+            startTyping();
           } catch { /* skip */ }
         }
       }
 
-      setMessages((m) => {
-        const copy = [...m];
-        copy[copy.length - 1] = { role: "assistant", content: acc, streaming: false };
-        return copy;
-      });
+      streamDoneRef.current = true;
+      startTyping();
     } catch (e) {
+      if (typingRafRef.current) { cancelAnimationFrame(typingRafRef.current); typingRafRef.current = null; }
       if ((e as Error).name === "AbortError") return;
       setMessages((m) => {
         const copy = [...m];
@@ -656,7 +810,10 @@ export function GippyChat({ onClose }: Props) {
       </header>
 
       {/* Messages */}
-      <div className="gippy-messages flex-1 overflow-y-auto relative">
+      <div
+        ref={scrollContainerRef}
+        className="gippy-messages flex-1 overflow-y-auto relative"
+      >
         {/* Декоративный градиент сверху (только тёмная тема) */}
         {isDark && (
           <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-xl h-56 bg-violet-600/[0.05] blur-3xl rounded-full" />
@@ -692,7 +849,14 @@ export function GippyChat({ onClose }: Props) {
 
             <div className="flex flex-col gap-2 w-full">
               {SUGGESTIONS.map((q, i) => (
-                <button key={i} onClick={() => { ymGoal("GIPPY_CHAT_SUGGESTION_CLICK"); send(q); }}
+                <button key={i} onClick={() => {
+                  ymGoal("GIPPY_CHAT_SUGGESTION_CLICK");
+                  if (i === 0 && onBeginnerTourRequest) {
+                    onBeginnerTourRequest();
+                  } else {
+                    send(q);
+                  }
+                }}
                   className={`flex items-center gap-3 text-left px-4 py-3 rounded-xl transition-all group ${suggestionBtn}`}>
                   <ChevronRight className="w-3.5 h-3.5 text-violet-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                   <span className={`text-sm transition-colors ${suggestionText}`}>{q}</span>
@@ -728,7 +892,8 @@ export function GippyChat({ onClose }: Props) {
                           <span className="gippy-dot" />
                         </span>
                       ) : (
-                        <>
+                        /* key switches from 'empty'→'text' on first chunk: triggers fade-in animation once */
+                        <div key={msg.content === "" ? "empty" : "text"} className="gippy-content-appear">
                           {parseSegments(msg.content).map((seg, si) =>
                             seg.type === "chart"
                               ? <div key={si}>{
@@ -739,7 +904,7 @@ export function GippyChat({ onClose }: Props) {
                               : <div key={si} dangerouslySetInnerHTML={{ __html: renderMarkdown(seg.content, isDark) }} />
                           )}
                           {msg.streaming && <span className="gippy-cursor" />}
-                        </>
+                        </div>
                       )}
                     </div>
                   )}

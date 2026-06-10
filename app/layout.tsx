@@ -5,6 +5,7 @@ import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider } from "@/lib/theme-context";
+import { GippyOrbProvider } from "@/context/gippy-orb-context";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -278,8 +279,10 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <AuthProvider>
-            <Header />
-            {children}
+            <GippyOrbProvider>
+              <Header />
+              {children}
+            </GippyOrbProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -9,6 +9,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useState, useEffect } from "react";
 import { GippyChat } from "@/components/ui/GippyChat";
 import { GippyNotification } from "@/components/ui/GippyNotification";
+import { GippyOrb } from "@/components/ui/GippyOrb";
+import { useGippyOrb } from "@/context/gippy-orb-context";
 
 export function Header() {
   const pathname = usePathname();
@@ -16,6 +18,7 @@ export function Header() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const { orbActive, startTour } = useGippyOrb();
 
   // Закрываем меню при смене страницы
   useEffect(() => {
@@ -78,8 +81,9 @@ export function Header() {
               ))}
 
               <button
-                onClick={() => setChatOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-white bg-linear-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 transition-all shadow-sm shadow-violet-500/30 whitespace-nowrap"
+                onClick={() => !orbActive && setChatOpen(true)}
+                disabled={orbActive}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-white bg-linear-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 transition-all shadow-sm shadow-violet-500/30 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <GippyLogo size={22} theme="dark" className="shrink-0" />
                 Gippy AI
@@ -163,8 +167,9 @@ export function Header() {
               ))}
 
               <button
-                onClick={() => { setMenuOpen(false); setChatOpen(true); }}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-white bg-linear-to-r from-violet-600 to-blue-600"
+                onClick={() => { if (!orbActive) { setMenuOpen(false); setChatOpen(true); } }}
+                disabled={orbActive}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-white bg-linear-to-r from-violet-600 to-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <GippyLogo size={22} theme="dark" className="shrink-0" />
                 Gippy AI
@@ -233,10 +238,29 @@ export function Header() {
       )}
 
       {/* Gippy AI chat overlay */}
-      {chatOpen && <GippyChat onClose={() => setChatOpen(false)} />}
+      {chatOpen && (
+        <GippyChat
+          onClose={() => setChatOpen(false)}
+          onBeginnerTourRequest={() => {
+            setChatOpen(false);
+            if (pathname !== '/') {
+              router.push('/');
+            }
+            startTour();
+          }}
+        />
+      )}
+
+      {/* Gippy Orb — animated CFA tour + mini panel */}
+      {orbActive && (
+        <GippyOrb
+          onClose={() => {}}
+          onOpenFullChat={() => setChatOpen(true)}
+        />
+      )}
 
       {/* First-visit notification */}
-      {!chatOpen && <GippyNotification onOpen={() => setChatOpen(true)} />}
+      {!chatOpen && !orbActive && <GippyNotification onOpen={() => setChatOpen(true)} />}
     </>
   );
 }

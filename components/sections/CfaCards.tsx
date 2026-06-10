@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback, Fragment } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import type { CfaItem, CfaStatus } from '@/lib/types';
 import type { AggregatedResult } from '@/lib/parsers/types';
+import { useGippyOrb } from '@/context/gippy-orb-context';
 
 // ─── Типы ────────────────────────────────────────────────────────────────────
 
@@ -80,9 +81,16 @@ function SkeletonCard() {
 
 // ─── Мобильная карточка ───────────────────────────────────────────────────────
 
-function MobileCard({ item, onCalc }: { item: CfaItem; onCalc: (item: CfaItem) => void }) {
+function MobileCard({ item, onCalc, isHighlighted }: { item: CfaItem; onCalc: (item: CfaItem) => void; isHighlighted?: boolean }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 hover:shadow-md transition-shadow">
+    <div
+      data-cfa-id={item.id}
+      className={`rounded-xl border bg-card p-4 transition-all duration-200 ${
+        isHighlighted
+          ? 'gippy-cfa-highlight border-violet-500/50 bg-violet-50 dark:bg-violet-900/20'
+          : 'border-border hover:shadow-md'
+      }`}
+    >
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">
@@ -294,6 +302,23 @@ function Calculator({ item, onClose }: { item: CfaItem; onClose: () => void }) {
   );
 }
 
+// ─── Beginner score for Gippy tour ───────────────────────────────────────────
+
+function beginnerScore(item: CfaItem): number {
+  let score = 0;
+  if (item.status === 'open') score += 100;
+  else if (item.status === 'soon') score += 20;
+  if (item.access.includes('Неквал')) score += 50;
+  const typeL = item.type.toLowerCase();
+  if (typeL.includes('фиксир')) score += 30;
+  if (item.yieldNumeric >= 15 && item.yieldNumeric <= 30) score += 20;
+  if (item.minAmountNumeric <= 10000) score += 15;
+  else if (item.minAmountNumeric <= 50000) score += 8;
+  if (item.termMonths && item.termMonths <= 6) score += 10;
+  else if (item.termMonths && item.termMonths <= 12) score += 5;
+  return score;
+}
+
 // ─── Основной компонент ───────────────────────────────────────────────────────
 
 export function CfaCards() {
@@ -314,6 +339,8 @@ export function CfaCards() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [calcItem, setCalcItem] = useState<CfaItem | null>(null);
+
+  const { beginnerSortActive, yieldSortActive, highlightedCfaId, setTourCfaIds, setTourCfaContext } = useGippyOrb();
 
   const toggleExpand = (id: string) =>
     setExpandedId((prev) => (prev === id ? null : id));
@@ -408,6 +435,15 @@ export function CfaCards() {
   // Сортировка
   const sorted = useMemo(() => {
     const arr = [...filtered];
+    // AI-triggered yield sort takes highest priority
+    if (yieldSortActive) {
+      arr.sort((a, b) => b.yieldNumeric - a.yieldNumeric);
+      return arr;
+    }
+    if (beginnerSortActive) {
+      arr.sort((a, b) => beginnerScore(b) - beginnerScore(a));
+      return arr;
+    }
     arr.sort((a, b) => {
       let diff = 0;
       if (sortCol === 'date') {
@@ -423,7 +459,36 @@ export function CfaCards() {
       return sortDir === 'asc' ? diff : -diff;
     });
     return arr;
-  }, [filtered, sortCol, sortDir]);
+  }, [filtered, sortCol, sortDir, beginnerSortActive, yieldSortActive]);
+
+  // Передаём топ-3 в GippyOrb когда активен тур
+  useEffect(() => {
+    const active = beginnerSortActive || yieldSortActive;
+    if (active && sorted.length > 0) {
+      const top3 = sorted.slice(0, 3);
+      setTourCfaIds(top3.map((i) => i.id));
+      setPage(0);
+
+      // Формируем подробный контекст именно тех карточек, которые подсвечивает орб
+      const label = yieldSortActive
+        ? 'Топ-3 ЦФА по максимальной доходности (отсортировано по убыванию)'
+        : 'Топ-3 ЦФА для новичка (именно эти карточки сейчас подсвечены на экране)';
+      const lines = top3.map((item, idx) => {
+        const access = Array.isArray(item.access) ? item.access.join(', ') : String(item.access ?? '');
+        return [
+          `${idx + 1}. [${item.id}] ${item.name}`,
+          `   Оператор: ${item.operator}`,
+          `   Тип: ${item.type}`,
+          `   Доходность: ${item.yield}`,
+          `   Срок: ${item.term}`,
+          `   Мин. сумма: ${item.minAmount}`,
+          `   Доступ: ${access}`,
+          item.badge ? `   Метка: ${item.badge}` : '',
+        ].filter(Boolean).join('\n');
+      });
+      setTourCfaContext(`${label}:\n\n${lines.join('\n\n')}`);
+    }
+  }, [beginnerSortActive, yieldSortActive, sorted, setTourCfaIds, setTourCfaContext]);
 
   // Пагинация
   const totalPages = Math.ceil(sorted.length / PER_PAGE);
@@ -642,13 +707,17 @@ export function CfaCards() {
                     )
                     : displayed.map((item) => {
                       const isOpen = expandedId === item.id;
+                      const isHighlighted = highlightedCfaId === item.id;
                       return (
                         <Fragment key={item.id}>
                           {/* ── Основная строка ── */}
                           <tr
+                            data-cfa-id={item.id}
                             onClick={() => toggleExpand(item.id)}
                             className={`group border-b border-border cursor-pointer transition-all duration-150 select-none ${
-                              isOpen
+                              isHighlighted
+                                ? 'gippy-cfa-highlight bg-violet-50 dark:bg-violet-900/25'
+                                : isOpen
                                 ? 'bg-primary/5 dark:bg-primary/10 border-transparent shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
                                 : 'hover:bg-primary/5 dark:hover:bg-primary/10 hover:shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
                             }`}
@@ -800,7 +869,7 @@ export function CfaCards() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {displayed.map((item) => (
-                <MobileCard key={item.id} item={item} onCalc={setCalcItem} />
+                <MobileCard key={item.id} item={item} onCalc={setCalcItem} isHighlighted={highlightedCfaId === item.id} />
               ))}
             </div>
           )}
